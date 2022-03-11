@@ -1,0 +1,16 @@
+FROM jupyter/all-spark-notebook:spark-3.1.1
+
+COPY ./jdbc_drivers/* jupyter-spark:/usr/local/spark-3.1.1-bin-hadoop3.2/jars/
+
+RUN python3 -m pip install pyspark==3.1.1 delta-spark altair matplotlib pandas avro numpy scipy seaborn findspark nbconvert pyarrow fastparquet
+
+RUN jupyter lab clean
+RUN jupyter lab build
+RUN ipython profile create
+RUN echo "c.InteractiveShellApp.extensions.append('sparkmonitor.kernelextension')" >>  $(ipython profile locate default)/ipython_kernel_config.py
+
+RUN python3 -m pip install psycopg2-binary ipython-sql
+
+USER root
+ADD volume_spark_files/ /home/jovyan/work/
+RUN chown -R jovyan:users /home/jovyan/work

@@ -1,0 +1,98 @@
+version: '3'
+
+services:
+
+  postgres_cnes:
+    build:
+      context: .
+      dockerfile: Dockerfile_postgres_14
+    container_name: postgres_cnes
+    hostname: postgres_cnes
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=saude
+      - POSTGRES_USER=saude
+      - POSTGRES_PASSWORD=saude
+      - POSTGRES_HOST_AUTH_METHOD=trust
+      - PGDATA=/var/lib/postgresql/data
+    volumes:
+      - './postgres_cnes:/var/lib/postgresql/data:rw'
+
+  zookeeper_cnes:
+    image: 'debezium/zookeeper:1.8.1.Final'
+    container_name: zookeeper_cnes
+    hostname: zookeeper_cnes
+
+  kafka_cnes:
+    image: 'debezium/kafka:1.8.1.Final'
+    container_name: kafka_cnes
+    hostname: kafka_cnes
+    ports:
+      - '9092:9092'
+    links:
+      - 'zookeeper_cnes:zookeeper'
+    environment:
+      - 'ZOOKEEPER_CONNECT=zookeeper:2181'
+    depends_on:
+      - zookeeper_cnes
+
+  kafka_connect_debezium_cnes:
+    image: 'debezium/connect:1.8.1.Final'
+    container_name: kafka_connect_debezium
+    hostname: kafka_connect_debezium
+    volumes:      
+      - ./volume_spark_files/cdc:/home:rw
+    ports:
+      - 8083:8083
+    links:
+      - 'zookeeper_cnes:zookeeper'
+      - 'kafka_cnes:kafka'
+      - 'postgres_cnes:postgres'
+    environment:
+      - GROUP_ID=1
+      - CONFIG_STORAGE_TOPIC=cnes_configs
+      - OFFSET_STORAGE_TOPIC=cnes_offsets
+      - STATUS_STORAGE_TOPIC=cnes_statuses
+      - 'BOOTSTRAP_SERVERS=kafka:9092'
+    depends_on:
+      - zookeeper_cnes
+      - kafka_cnes
+
+  jupyter_spark_cnes:
+    build:
+      context: .
+      dockerfile: Dockerfile_spark
+    container_name: jupyter_spark_cnes
+    hostname: jupyter_spark_cnes
+    ports:
+      - '8888:8888'
+    environment:
+      - SPARK_MASTER=local
+      - 'KAFKA_BROKER=kafka:9092'
+      - 'ZOOKEEPER_CONNECT=zookeeper:2181'
+    links:
+      - 'zookeeper_cnes:zookeeper'
+      - 'kafka_cnes:kafka'
+    volumes:      
+      - ./volume_spark_files:/home/jovyan/work:rw      
+      - ./data:/home/jovyan/work/data:rw      
+
+  pgadmin_cnes:
+    image: dpage/pgadmin4
+    container_name: pgadmin_cnes
+    hostname: pgadmin_cnes
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=silveirasoie@gmail.com
+      - PGADMIN_DEFAULT_PASSWORD=matrix
+    ports:
+      - '16543:80'
+    links:
+      - 'postgres_cnes:postgres'
+    depends_on:
+      - postgres_cnes
+
+volumes:
+  volume_spark_files:
+    external: true  
+  postgres_cnes:

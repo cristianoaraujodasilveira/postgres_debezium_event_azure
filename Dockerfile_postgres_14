@@ -1,0 +1,53 @@
+
+FROM postgres:14-alpine
+
+LABEL maintainer="Debezium Community"
+ENV PLUGIN_VERSION=v1.8.1.Final
+
+ENV WAL2JSON_COMMIT_ID=wal2json_2_3
+
+RUN apk add --no-cache protobuf-c-dev
+
+# Compile the plugins from sources and install
+RUN apk add --no-cache --virtual .debezium-build-deps gcc clang llvm git make musl-dev pkgconf \
+    && git clone https://github.com/debezium/postgres-decoderbufs -b $PLUGIN_VERSION --single-branch \
+    && (cd /postgres-decoderbufs && make && make install) \
+    && rm -rf postgres-decoderbufs \
+    && git clone https://github.com/eulerto/wal2json -b master --single-branch \
+    && (cd /wal2json && git checkout $WAL2JSON_COMMIT_ID && make && make install) \
+    && rm -rf wal2json \
+    && apk del .debezium-build-deps
+
+COPY postgres/postgresql.conf /var/lib/postgresql/data/postgresql/postgresql.conf
+
+# Copy the custom configuration which will be passed down to the server (using a .sample file is the preferred way of doing it by 
+# the base Docker image)
+# COPY postgresql.conf.sample /usr/local/share/postgresql/postgresql.conf.sample
+
+# Copy the script which will initialize the replication permissions
+# COPY /docker-entrypoint-initdb.d /docker-entrypoint-initdb.d
+
+# FROM postgres:14-alpine3.15
+
+# RUN apt-get update \
+#     && apt-get install -f -y --no-install-recommends \
+#         software-properties-common \
+#         postgresql-14-wal2json
+#     && if [ "$USE_POSTGIS" != "false" ]; then apt-get install -f -y --no-install-recommends \
+#         postgresql-$PG_MAJOR-postgis-$POSTGIS_VERSION \
+#         postgresql-$PG_MAJOR-postgis-$POSTGIS_VERSION-scripts \
+#         postgis; \
+#        fi \
+#     && add-apt-repository "deb http://ftp.debian.org/debian testing main contrib" \
+#     && apt-get update && apt-get install -f -y --no-install-recommends \
+#         libprotobuf-c1 \
+#     && rm -rf /var/lib/apt/lists/*
+
+# COPY --from=build /usr/lib/postgresql/$PG_MAJOR/lib/decoderbufs.so /usr/lib/postgresql/$PG_MAJOR/lib/wal2json.so /usr/lib/postgresql/$PG_MAJOR/lib/
+# COPY --from=build /usr/share/postgresql/$PG_MAJOR/extension/decoderbufs.control /usr/share/postgresql/$PG_MAJOR/extension/
+# # Copy the custom configuration which will be passed down to the server (using a .sample file is the preferred way of doing it by
+# # the base Docker image)
+
+
+# # Copy the script which will initialize the replication permissions
+# COPY /docker-entrypoint-initdb.d /docker-entrypoint-initdb.d
